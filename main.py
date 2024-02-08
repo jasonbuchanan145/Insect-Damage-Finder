@@ -37,7 +37,6 @@ class AphidDamageDataset(Dataset):
 
             # bounding box is a square
             if 'x' in region_shape_attributes and 'y' in region_shape_attributes:
-                # For rectangle shapes
                 x0 = region_shape_attributes['x']
                 y0 = region_shape_attributes['y']
                 x1 = x0 + region_shape_attributes['width']
