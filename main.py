@@ -1,3 +1,4 @@
+import torchvision
 from torch import nn, optim
 from torch.utils.data import Dataset, DataLoader
 from PIL import Image, ImageDraw
@@ -74,9 +75,11 @@ transform = transforms.Compose([
 
 # Create an instance of the dataset
 aphid_dataset = AphidDamageDataset(csv_file='./train/leaves.csv', img_dir=img_dir, transform=transform)
-
+model=torchvision.models.detection.fasterrcnn_resnet50_fpn()
+numClasses = 2
+inFeature = model.roi_heads.box
 dataloader = DataLoader(aphid_dataset,batch_size=32, shuffle=True)
-num_epochs = 10  # Number of epochs to train for
+
 criterion = nn.CrossEntropyLoss()
 optimizer = optim.Adam(model.parameters(), lr=0.001)
 for epoch in range(num_epochs):
