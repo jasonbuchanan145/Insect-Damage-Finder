@@ -18,16 +18,27 @@ class AphidDamageDataset(Dataset):
         self.img_dir = img_dir
         self.transform = transform
 
+        # Create a list of unique image filenames
+        self.unique_imgs = self.annotations_frame['filename'].unique()
+
+        # Create a mapping from image filenames to unique numerical IDs
+        self.img_to_id = {img: idx for idx, img in enumerate(self.unique_imgs)}
+
     def __len__(self):
-        return len(self.annotations_frame)
+        return len(self.unique_imgs)
 
     def __getitem__(self, idx):
-        img_name = os.path.join(self.img_dir, self.annotations_frame.iloc[idx, 0])
+        # Use the idx to get the unique image filename
+        unique_img_name = self.unique_imgs[idx]
+        img_name = os.path.join(self.img_dir, unique_img_name)
         image = Image.open(img_name).convert("RGB")
-        image_annotations = self.annotations_frame[self.annotations_frame['filename'] == img_name]
 
+        # Filter annotations for the current image
+        image_annotations = self.annotations_frame[self.annotations_frame['filename'] == unique_img_name]
         boxes = []
         labels = []
+        area = []
+        iscrowd = []
         for row in image_annotations.itertuples(index=False):
 
             region_shape_attributes = json.loads(row.region_shape_attributes)
@@ -56,17 +67,31 @@ class AphidDamageDataset(Dataset):
 
             boxes.append([x0, y0, x1, y1])
             labels.append(label)
+            area.append((x1 - x0) * (y1 - y0))
+            iscrowd.append(0)
+
         boxes = torch.tensor(boxes, dtype=torch.float32)
         labels = torch.tensor(labels, dtype=torch.int64)
+        area = torch.tensor(area, dtype=torch.float32)
+        # Use the mapping to get the unique ID for the current image
+        image_id = self.img_to_id[unique_img_name]
+
+        target = {
+            'boxes': boxes,
+            'labels': labels,
+            'image_id': torch.tensor([image_id]),
+            'area': area,
+            'iscrowd': iscrowd
+        }
 
         if self.transform:
             image = self.transform(image)
 
-        return image, {'boxes': boxes, 'labels': labels}
+        return image, target
 
 
 
-img_dir = './train'
+img_dir = './training/img'
 transform = transforms.Compose([
     transforms.Resize((224, 224)),  # Resize images to fit the model
     transforms.ToTensor(),
@@ -74,39 +99,41 @@ transform = transforms.Compose([
 ])
 
 # Create an instance of the dataset
-aphid_dataset = AphidDamageDataset(csv_file='./train/leaves.csv', img_dir=img_dir, transform=transform)
-model=torchvision.models.detection.fasterrcnn_resnet50_fpn()
-numClasses = 2
-inFeature = model.roi_heads.box
-dataloader = DataLoader(aphid_dataset,batch_size=32, shuffle=True)
+aphid_dataset = AphidDamageDataset(csv_file='./training/leaves.csv', img_dir=img_dir, transform=transform)
+dataLoader= DataLoader(aphid_dataset,batch_size=20,shuffle=True,collate_fn=lambda x: tuple(zip(*x)))
+model = torchvision.models.detection.fasterrcnn_resnet50_fpn()
+model.train()
+device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
+if not torch.cuda.is_available():
+    print("cuda not available, freak out")
+ #   exit(-1)
+optimizer = optim.SGD(model.parameters(), lr=0.005, momentum=0.9, weight_decay=0.0005)
+for epoch in range(0,10):
+    for images, targets in dataLoader:
+        images = list(img.to(device) for img in images)
+        # Original line for reference:
+        # targets = [{k: v.to(device) for k, v in t.items()} for t in targets]
 
-criterion = nn.CrossEntropyLoss()
-optimizer = optim.Adam(model.parameters(), lr=0.001)
-for epoch in range(num_epochs):
-    model.train()  # Set the model to training mode
-    running_loss = 0.0
+        # Expanded version
+        new_targets = []  # Initialize an empty list to hold the modified targets
+        for target_dict in targets:  # Here, each 'target_dict' is the annotations for one image
+            new_target_dict = {}
+            for key, value in target_dict.items():
+                if isinstance(value, torch.Tensor):
+                    new_target_dict[key] = value.to(device)
+                else:
+                    new_target_dict[key] = value  # Copy non-tensor values directly
+            new_targets.append(new_target_dict)
 
-    for inputs, labels in dataloader:  # Assuming you have a DataLoader called `dataloader`
-        # Move inputs and labels to the appropriate device (GPU or CPU)
-        inputs, labels = inputs.to(device), labels.to(device)
-
-        # Zero the parameter gradients
+        targets = new_targets  # Replace the original targets list with the new, processed list
+        # Zero the gradients on each iteration
         optimizer.zero_grad()
 
-        # Forward pass: compute the model output
-        outputs = model(inputs)
+        loss_dict = model(images, targets)
+        losses = sum(loss for loss in loss_dict.values())
 
-        # Compute the loss
-        loss = criterion(outputs, labels)
+        # Perform backpropagation
+        losses.backward()
 
-        # Backward pass: compute gradient of the loss with respect to model parameters
-        loss.backward()
-
-        # Perform a single optimization step (parameter update)
+        # Update the weights
         optimizer.step()
-
-        # Accumulate the running loss
-        running_loss += loss.item()
-
-    # Print average loss for the epoch
-    print(f"Epoch {epoch + 1}, Loss: {running_loss / len(dataloader)}")
