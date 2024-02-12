@@ -6,7 +6,7 @@ import torch
 import matplotlib.pyplot as plt
 import matplotlib.patches as patches
 # Load the image
-image_path = './testing/leaf1.jpg'
+image_path = './testing/leafAgain.jpg'
 image = Image.open(image_path).convert("RGB")
 
 # Transform the image
@@ -23,26 +23,23 @@ model.eval()  # Set the model to evaluation mode
 with torch.no_grad():  # Turn off gradient computation
     prediction = model([transformed_image.to("cpu")])  # Assuming 'device' is your computation device (CPU or GPU)
 
-# Process predictions
-# The prediction is a list of dictionaries, one for each input image
-# Here, we're processing just one image, so we take the first element
+
 pred_boxes = prediction[0]['boxes'].cpu().numpy()  # Bounding boxes
 pred_labels = prediction[0]['labels'].cpu().numpy()  # Labels (damage or not)
 pred_scores = prediction[0]['scores'].cpu().numpy()  # Confidence scores
 
 # Filter predictions based on a confidence threshold (e.g., 0.5)
-threshold = 0.1
+threshold = 0.3
 filtered_boxes = pred_boxes[pred_scores >= threshold]
 filtered_labels = pred_labels[pred_scores >= threshold]
 filtered_scores = pred_scores[pred_scores >= threshold]
 
-# Now, 'filtered_boxes', 'filtered_labels', and 'filtered_scores' contain the predictions you're interested in
-# You can use this data to visualize the predictions on the image, analyze the detected damage, etc.
+
 pil_image = T.ToPILImage()(transformed_image.cpu())
 
 # Create a figure and axis for plotting
 fig, ax = plt.subplots(1)
-ax.imshow(pil_image)
+ax.imshow(image)
 
 # Draw each bounding box
 for box in filtered_boxes:
