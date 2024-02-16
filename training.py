@@ -35,7 +35,6 @@ class AphidDamageDataset(Dataset):
 
         labels = torch.tensor([1], dtype=torch.int64)
 
-        # Apply any transformations as needed
         if self.transform:
             image = self.transform(image)
 
@@ -62,7 +61,6 @@ def my_collate_fn(batch):
         padded_images.append(padded_image)
         targets.append(target)
 
-    # Stack and return the padded images and targets
     return torch.stack(padded_images), targets
 
 
@@ -96,16 +94,12 @@ def main():
 
             loss_dict = model(images, targets)
             losses = sum(loss for loss in loss_dict.values())
-
-            # Perform backpropagation
             losses.backward()
 
-            # Update the weights
             optimizer.step()
             print(f"Loss: {losses.item()}")
         print("looping")
     torch.save(model.state_dict(), "model.pth")
 
 if __name__ == '__main__':
-    # This is the "entry point" guard for Windows compatibility
     main()
