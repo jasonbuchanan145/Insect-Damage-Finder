@@ -6,7 +6,9 @@ from PIL import Image
 import os
 from torch.nn.functional import pad
 import torch
-
+from torchvision.models import ResNet152_Weights
+from torchvision.models.detection import FasterRCNN
+from torchvision.models.detection.backbone_utils import resnet_fpn_backbone
 from torchvision.transforms import transforms
 
 import sys
@@ -26,13 +28,11 @@ class AphidDamageDataset(Dataset):
         img_name = os.path.join(self.img_dir, self.unique_imgs[idx])
         image = Image.open(img_name).convert("RGB")
 
-        # Since each image is now a single instance of damage, and the bounding box covers the entire image,
-        # the bounding box is essentially the size of the image itself.
-        # Therefore, the bounding box can be represented as [0, 0, width, height].
-        width, height = image.size
-        boxes = torch.tensor([[0, 0, width, height]], dtype=torch.float16)
 
-        # Assuming every image represents damage, you might want to label every instance as 1 (or another appropriate label)
+        width, height = image.size
+        boxes = torch.tensor([[0, 0, width, height]], dtype=torch.float32)
+
+
         labels = torch.tensor([1], dtype=torch.int64)
 
         # Apply any transformations as needed
@@ -77,12 +77,13 @@ def main():
     # Create an instance of the dataset
     aphid_dataset = AphidDamageDataset(img_dir=img_dir, transform=transform,debugMode=False)
     dataLoader = DataLoader(aphid_dataset, batch_size=5, num_workers=5, shuffle=True, collate_fn=my_collate_fn)
-    model = torchvision.models.detection.fasterrcnn_resnet50_fpn()
+    backbone = resnet_fpn_backbone(backbone_name='resnet152', weights=ResNet152_Weights.DEFAULT)
+    model = FasterRCNN(backbone=backbone, num_classes=91)
     model.train()
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     if not torch.cuda.is_available():
-        print("pytorch does not think cuda is available, this will be very slow on cpu, like overnight or longer.")
-    #   exit(-1)
+        print("pytorch does not think cuda is available, this will be very slow on cpu taking over overnight or longer. You should set up cuda.")
+        exit(-1)
     model.to(device)
     optimizer = optim.SGD(model.parameters(), lr=0.005, momentum=0.9, weight_decay=0.0005)
     for epoch in range(0, 10):
