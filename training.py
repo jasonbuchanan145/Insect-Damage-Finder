@@ -74,7 +74,7 @@ def main():
 
     # Create an instance of the dataset
     aphid_dataset = AphidDamageDataset(img_dir=img_dir, transform=transform,debugMode=False)
-    dataLoader = DataLoader(aphid_dataset, batch_size=5, num_workers=5, shuffle=True, collate_fn=my_collate_fn)
+    dataLoader = DataLoader(aphid_dataset, batch_size=15, num_workers=5, shuffle=True, collate_fn=my_collate_fn)
     backbone = resnet_fpn_backbone(backbone_name='resnet152', weights=ResNet152_Weights.DEFAULT)
     model = FasterRCNN(backbone=backbone, num_classes=91)
     model.train()
