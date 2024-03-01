@@ -65,7 +65,9 @@ def my_collate_fn(batch):
 
 
 def main():
-    print(sys.version)
+    if not torch.cuda.is_available():
+        print("pytorch does not think cuda is available, this will be very slow on cpu taking over overnight or longer. You should set up cuda.")
+        exit(-1)
     img_dir = './training/img/parsed'
     transform = transforms.Compose([
         transforms.ToTensor(),
@@ -74,17 +76,14 @@ def main():
 
     # Create an instance of the dataset
     aphid_dataset = AphidDamageDataset(img_dir=img_dir, transform=transform,debugMode=False)
-    dataLoader = DataLoader(aphid_dataset, batch_size=5, num_workers=5, shuffle=True, collate_fn=my_collate_fn)
+    dataLoader = DataLoader(aphid_dataset, batch_size=10, shuffle=True, collate_fn=my_collate_fn)
     backbone = resnet_fpn_backbone(backbone_name='resnet152', weights=ResNet152_Weights.DEFAULT)
     model = FasterRCNN(backbone=backbone, num_classes=91)
     model.train()
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-    if not torch.cuda.is_available():
-        print("pytorch does not think cuda is available, this will be very slow on cpu taking over overnight or longer. You should set up cuda.")
-        exit(-1)
     model.to(device)
     optimizer = optim.SGD(model.parameters(), lr=0.005, momentum=0.9, weight_decay=0.0005)
-    for epoch in range(0, 10):
+    for epoch in range(0, 20):
         for images, targets in dataLoader:
             images = list(img.to(device) for img in images)
 
@@ -95,7 +94,7 @@ def main():
             loss_dict = model(images, targets)
             losses = sum(loss for loss in loss_dict.values())
             losses.backward()
-
+            nn.utils.clip_grad_norm_(model.parameters(), max_norm=1)
             optimizer.step()
             print(f"Loss: {losses.item()}")
         print("looping")
