@@ -17,13 +17,13 @@ jobs:
       run: |
         # $CONDA is an environment variable pointing to the root of the miniconda directory
         echo $CONDA/bin >> $GITHUB_PATH
-    - name: Configure Conda Solver
+    - name: Install Mamba
       run: |
-        conda config --set channel_priority strict
-        conda config --set solver classic
-    - name: Install dependencies
+        conda install mamba -n base -c conda-forge
+    
+    - name: Install dependencies with Mamba
       run: |
-        conda env update --file env.yaml --name base
+        mamba env update --file env.yaml --name base
     - name: Lint with flake8
       run: |
         conda install flake8
